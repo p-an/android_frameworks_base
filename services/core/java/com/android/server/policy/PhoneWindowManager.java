@@ -154,6 +154,11 @@ import static android.view.WindowManagerPolicy.WindowManagerFuncs.CAMERA_LENS_CO
 import static android.view.WindowManagerPolicy.WindowManagerFuncs.CAMERA_LENS_UNCOVERED;
 import static android.view.WindowManagerPolicy.WindowManagerFuncs.CAMERA_LENS_COVERED;
 
+import android.hardware.Sensor;
+import android.hardware.SensorManager;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorEvent;
+
 /**
  * WindowManagerPolicy implementation for the Android phone UI.  This
  * introduces a new method suffix, Lp, for an internal lock of the
@@ -6433,8 +6438,85 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         if (DEBUG_WAKEUP) Slog.i(TAG, "Finished waking up...");
     }
 
+       private SensorManager mSensorManager = null;
+       private PowerKeySensorListener mPowerKeySensorListener;
+       private Sensor proximitySensor;
+       private Sensor lightSensor;
+
+       private class PowerKeySensorListener implements SensorEventListener{
+                               private int lightChangeCntInitial = 10;
+
+                               private int lightChangeCnt = 0;
+                               private float proximity = 0;
+                               private float ligtSum = 0;
+                               long eventTime = 0;
+
+                               public void reset(long eventTime){
+                                       this.eventTime = eventTime;
+                                       lightChangeCnt = lightChangeCntInitial;
+                                       proximity = 0;
+                                       ligtSum = 0;
+                               }
+
+                               @Override
+                               public final void onAccuracyChanged(Sensor sensor, int accuracy) {
+                                       //Log.d(TAG,"wakeUpFromPowerKey onAccuracyChanged " + sensor + " " + accuracy);
+                               }
+
+                               @Override
+                               public final void onSensorChanged(SensorEvent event) {
+                                       float value = event.values[0];
+                                       if(event.sensor == proximitySensor)handleProximityChange(value);
+                                       if(event.sensor == lightSensor){
+                                               handleLightChange(value);
+                                               if(value >= 50){
+                                                       Log.d(TAG,"wakeUpFromPowerKey onSensorChanged - wake up");
+                                                       mSensorManager.unregisterListener(this);
+                                                       wakeUp(eventTime, mAllowTheaterModeWakeFromPowerKey, "android.policy:POWER");
+                                                       return;
+                                               }
+                                       }
+
+
+                                       if(lightChangeCnt == 0){
+                                               mSensorManager.unregisterListener(this);
+                                               Log.d(TAG,"wakeUpFromPowerKey onSensorChanged proximity " + proximity + " light " + ligtSum/lightChangeCntInitial + " ligtSum " + ligtSum);
+                                               if(proximity == 0 && ligtSum/lightChangeCntInitial <= 5){
+                                                       Log.d(TAG,"wakeUpFromPowerKey onSensorChanged - blocked");
+                                               }else{
+                                                       Log.d(TAG,"wakeUpFromPowerKey onSensorChanged - wake up");
+                                                       wakeUp(eventTime, mAllowTheaterModeWakeFromPowerKey, "android.policy:POWER");
+                                               }
+                                       }
+                               }
+
+                               private void handleProximityChange(float value){
+                                       Log.d(TAG,"wakeUpFromPowerKey onSensorChanged P " + value);
+                                       proximity = value;
+                               }
+
+                               private void handleLightChange(float value){
+                                       Log.d(TAG,"wakeUpFromPowerKey onSensorChanged L " + value);
+                                       ligtSum += value;
+                                       lightChangeCnt--;
+                               }
+       }
+
+
     private void wakeUpFromPowerKey(long eventTime) {
-        wakeUp(eventTime, mAllowTheaterModeWakeFromPowerKey, "android.policy:POWER");
+               Log.d(this.TAG,"wakeUpFromPowerKey");
+               if(mPowerKeySensorListener == null){
+                       mPowerKeySensorListener = new PowerKeySensorListener();
+               }
+
+               mPowerKeySensorListener.reset(eventTime);
+
+               mSensorManager = (SensorManager) mContext.getSystemService(Context.SENSOR_SERVICE);
+               proximitySensor = mSensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
+               lightSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_LIGHT);
+               mSensorManager.registerListener(mPowerKeySensorListener, proximitySensor, SensorManager.SENSOR_DELAY_GAME);
+               mSensorManager.registerListener(mPowerKeySensorListener, lightSensor, SensorManager.SENSOR_DELAY_GAME);
+
     }
 
     private boolean wakeUp(long wakeTime, boolean wakeInTheaterMode, String reason) {
