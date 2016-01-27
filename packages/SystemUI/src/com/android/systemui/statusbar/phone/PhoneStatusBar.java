@@ -4234,6 +4234,7 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
             mNotificationPanel.setTouchDisabled(true);
         }
         instantExpandNotificationsPanel();
+	mIconController.moveNotificationIconAreaToKeyguard();
         mLeaveOpenOnKeyguardHide = false;
         if (mDraggedDownRow != null) {
             mDraggedDownRow.setUserLocked(false);
@@ -4443,6 +4444,7 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
                         - StatusBarIconController.DEFAULT_TINT_ANIMATION_DURATION,
                 StatusBarIconController.DEFAULT_TINT_ANIMATION_DURATION);
         disable(mDisabledUnmodified1, mDisabledUnmodified2, fadeoutDuration > 0 /* animate */);
+	mIconController.moveNotificationIconAreaToStatusBar();
         mVisualizerView.setVisible(false);
     }
 

@@ -51,12 +51,17 @@ import com.android.systemui.tuner.TunerService.Tunable;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 
+import android.view.ViewParent;
+import android.util.Log;
+
 /**
  * Controls everything regarding the icons in the status bar and on Keyguard, including, but not
  * limited to: notification icons, signal cluster, additional status icons, and clock in the status
  * bar.
  */
 public class StatusBarIconController implements Tunable {
+
+    private static final String TAG = "StatusBarIconController";
 
     public static final long DEFAULT_TINT_ANIMATION_DURATION = 120;
 
@@ -75,6 +80,8 @@ public class StatusBarIconController implements Tunable {
     private LinearLayout mStatusIconsKeyguard;
     private IconMerger mNotificationIcons;
     private View mNotificationIconArea;
+    private View mNotificationIconArea_outer;
+    private View mKeyguardNotificationIconArea_outer;
     private ImageView mMoreIcon;
     private BatteryLevelTextView mBatteryLevelTextView;
     private BatteryMeterView mBatteryMeterView;
@@ -118,10 +125,12 @@ public class StatusBarIconController implements Tunable {
         mStatusIcons = (LinearLayout) statusBar.findViewById(R.id.statusIcons);
         mSignalCluster = (SignalClusterView) statusBar.findViewById(R.id.signal_cluster);
         mNotificationIconArea = statusBar.findViewById(R.id.notification_icon_area_inner);
+        mNotificationIconArea_outer = statusBar.findViewById(R.id.notification_icon_area);
         mNotificationIcons = (IconMerger) statusBar.findViewById(R.id.notificationIcons);
         mMoreIcon = (ImageView) statusBar.findViewById(R.id.moreIcon);
         mNotificationIcons.setOverflowIndicator(mMoreIcon);
         mStatusIconsKeyguard = (LinearLayout) keyguardStatusBar.findViewById(R.id.statusIcons);
+        mKeyguardNotificationIconArea_outer = keyguardStatusBar.findViewById(R.id.kg_notification_icon_area);
         mBatteryLevelTextView =
                 (BatteryLevelTextView) statusBar.findViewById(R.id.battery_level_text);
         mBatteryMeterView = (BatteryMeterView) statusBar.findViewById(R.id.battery);
@@ -262,6 +271,40 @@ public class StatusBarIconController implements Tunable {
         animateShow(mSystemIconArea, animate);
         animateShow(mCenterClockLayout, animate);
     }
+
+    private void switchNotificationIconAreaParent(View v){
+       if(!(v instanceof ViewGroup)){
+               Log.e(TAG,"switchNotificationIconAreaParent v is not instance of ViewGroup " + v);
+               return;
+       }
+       ViewGroup vg = (ViewGroup)v;
+       ViewParent p = mNotificationIconArea.getParent();
+       if(p == null || !(p instanceof ViewGroup)){
+               Log.e(TAG,"mNotificationIconArea parent null or not instance of ViewGroup " + p);
+       }else{
+               ((ViewGroup)p).removeView(mNotificationIconArea);
+               vg.addView(mNotificationIconArea);
+       }
+    }
+
+	public void moveNotificationIconAreaToKeyguard(){
+		//Log.d(TAG,"hideNotificationIconArea " + animate + " " + mKeyguardNotificationIconArea_outer);
+		boolean animate = false;
+		if(mKeyguardNotificationIconArea_outer != null){
+			switchNotificationIconAreaParent(mKeyguardNotificationIconArea_outer);
+        		animateShow(mNotificationIconArea, animate);
+		}
+	}
+
+	public void moveNotificationIconAreaToStatusBar(){
+		//Log.d(TAG,"showNotificationIconArea " animate + " " + mNotificationIconArea_outer);
+		boolean animate = false;
+		if(mNotificationIconArea_outer != null){
+			switchNotificationIconAreaParent(mNotificationIconArea_outer);
+        		animateShow(mNotificationIconArea, animate);
+		}
+
+	}
 
     public void hideNotificationIconArea(boolean animate) {
         animateHide(mNotificationIconArea, animate);
