@@ -36,6 +36,11 @@ import com.android.systemui.recents.RecentsActivity;
 import com.android.systemui.recents.views.RecentsView;
 
 import java.util.ArrayList;
+import android.util.Log;
+
+import android.widget.SeekBar;
+import android.widget.SeekBar.OnSeekBarChangeListener;
+import android.widget.TextView;
 
 /**
  * A helper for the dialogs that show when task debugging is on.
@@ -76,6 +81,10 @@ public class RecentsResizeTaskDialog extends DialogFragment {
     private Rect[] mBounds = {new Rect(), new Rect(), new Rect(), new Rect()};
     private Task[] mTasks = {null, null, null, null};
 
+    private SeekBar ratioSeekBar = null;
+    private TextView ratioTextView = null;
+    private int ratio = 50;
+
     public RecentsResizeTaskDialog(FragmentManager mgr, RecentsActivity activity) {
         mFragmentManager = mgr;
         mRecentsActivity = activity;
@@ -86,9 +95,56 @@ public class RecentsResizeTaskDialog extends DialogFragment {
     void showResizeTaskDialog(Task mainTask, RecentsView rv) {
         mTasks[0] = mainTask;
         mRecentsView = rv;
+	
+	ratio = calculateRatio(mainTask);
 
         show(mFragmentManager, TAG);
     }
+
+   int calculateRatio(Task t) {
+	int r = 0;
+        Rect display = mSsp.getWindowRect();
+        Rect taskRect = mSsp.getTaskBounds(t.key.stackId);
+        int resId = R.drawable.star;
+
+        if (display.equals(taskRect) || taskRect.isEmpty()) {
+		//full screen
+		r = 50;
+        } else {
+            boolean top = display.top == taskRect.top;
+            boolean bottom = display.bottom == taskRect.bottom;
+            boolean left = display.left == taskRect.left;
+            boolean right = display.right == taskRect.right;
+            if (top && bottom && left) {
+                //left;
+		r = (100 * taskRect.right) / display.right;
+            } else if (top && bottom && right) {
+                //right;
+		r = (100 * (display.right - taskRect.left)) / display.right;
+            } else if (top && left && right) {
+                //top;
+		r = (100 * taskRect.bottom) / display.bottom;
+            } else if (bottom && left && right) {
+                //bottom;
+		r = (100*(display.bottom - taskRect.top)) / display.bottom;
+            } else if (top && right) {
+                //top_right;
+		r = 50;
+            } else if (top && left) {
+                //top_left;
+		r = 50;
+            } else if (bottom && right) {
+                //bottom_right;
+		r = 50;
+            } else if (bottom && left) {
+                //bottom_left;
+		r = 50;
+            }
+        }
+	return r;
+    }
+
+
 
     /** Creates a new resize-task dialog. */
     private void createResizeTaskDialog(final Context context, LayoutInflater inflater,
@@ -117,6 +173,35 @@ public class RecentsResizeTaskDialog extends DialogFragment {
             }
         });
 
+	ratioSeekBar = (SeekBar) mResizeTaskDialogContent.findViewById(R.id.ratioSeekBar);
+	ratioTextView = (TextView) mResizeTaskDialogContent.findViewById(R.id.ratioTextView);
+
+	ratioSeekBar.setProgress(ratio);
+	ratioTextView.setText(ratio+"%");
+
+	ratioSeekBar.setOnSeekBarChangeListener(new OnSeekBarChangeListener() {
+		int progress = 0;
+		@Override
+		public void onProgressChanged(SeekBar seekBar, int progresValue, boolean fromUser) {
+			progress = progresValue;
+			ratioTextView.setText(progress + "%");
+			Log.d(TAG, "Changing seekbar's progress " + progresValue);
+		}
+
+		@Override
+		public void onStartTrackingTouch(SeekBar seekBar) {
+			Log.d(TAG, "Started tracking seekbar");
+		}
+
+		@Override
+		public void onStopTrackingTouch(SeekBar seekBar) {
+			Log.d(TAG, "Stopped tracking seekbar " + progress);
+			ratio = progress;
+		}
+	});
+		
+
+
         builder.setView(mResizeTaskDialogContent);
     }
 
@@ -130,24 +215,25 @@ public class RecentsResizeTaskDialog extends DialogFragment {
             }
         }
         int additionalTasks = 0;
+	double r = ((double)ratio)/100;
         switch (arrangement) {
             case PLACE_LEFT:
-                mBounds[0].right = mBounds[0].centerX();
+                mBounds[0].right = (int)(mBounds[0].right * r);//mBounds[0].centerX();
                 mBounds[1].left = mBounds[0].right;
                 additionalTasks = 1;
                 break;
             case PLACE_RIGHT:
-                mBounds[1].right = mBounds[1].centerX();
+                mBounds[1].right = (int)(mBounds[1].right * (1-r));//mBounds[1].centerX();
                 mBounds[0].left = mBounds[1].right;
                 additionalTasks = 1;
                 break;
             case PLACE_TOP:
-                mBounds[0].bottom = mBounds[0].centerY();
+                mBounds[0].bottom = (int)(mBounds[0].bottom * r);
                 mBounds[1].top = mBounds[0].bottom;
                 additionalTasks = 1;
                 break;
             case PLACE_BOTTOM:
-                mBounds[1].bottom = mBounds[1].centerY();
+                mBounds[1].bottom = (int)(mBounds[1].bottom * (1-r));
                 mBounds[0].top = mBounds[1].bottom;
                 additionalTasks = 1;
                 break;
@@ -199,6 +285,10 @@ public class RecentsResizeTaskDialog extends DialogFragment {
                 // Nothing to change.
                 break;
         }
+
+	for(Rect rc : mBounds){
+		Log.d(TAG,"placeTasks " + rc);
+	}
 
         // Get the other tasks.
         for (int i = 1; i <= additionalTasks && mTasks[i - 1] != null; ++i) {
