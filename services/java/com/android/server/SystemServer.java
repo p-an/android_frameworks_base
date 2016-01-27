@@ -1059,7 +1059,7 @@ public final class SystemServer {
 
         // Before things start rolling, be sure we have decided whether
         // we are in safe mode.
-        final boolean safeMode = wm.detectSafeMode();
+        final boolean safeMode = false;//wm.detectSafeMode();
         if (safeMode) {
             mActivityManagerService.enterSafeMode();
             // Disable the JIT for the system_server process
