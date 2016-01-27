@@ -841,7 +841,10 @@ public final class BatteryService extends SystemService {
                         mMultipleLedsEnabled);
                 if (status == BatteryManager.BATTERY_STATUS_FULL || level >= 90) {
                     // Battery is full or charging and nearly full
-                    mBatteryLight.setColor(mBatteryFullARGB);
+			if(status == BatteryManager.BATTERY_STATUS_FULL) //pAn
+				mBatteryLight.setFlashing(mBatteryFullARGB, Light.LIGHT_FLASH_TIMED,
+				mBatteryLedOn, mBatteryLedOff);
+			else mBatteryLight.setColor(mBatteryFullARGB);
                 } else {
                     if (isHvdcpPresent()) {
                         // Blinking orange if HVDCP charger
