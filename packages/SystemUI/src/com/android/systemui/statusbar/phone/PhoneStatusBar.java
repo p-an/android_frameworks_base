@@ -2188,7 +2188,6 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
 
         if (!mKeyguardFadingAway && keyguardVisible && backdropBitmap != null && mScreenOn) {
             // if there's album art, ensure visualizer is visible
-            mVisualizerView.setVisible(true);
             mVisualizerView.setPlaying(mMediaController != null
                     && mMediaController.getPlaybackState() != null
                     && mMediaController.getPlaybackState().getState()
@@ -4873,7 +4872,6 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
         mWakeUpTouchLocation = null;
         mStackScroller.setAnimationsEnabled(false);
         updateVisibleToUser();
-        mVisualizerView.setVisible(false);
         if (mQSTileHost.isEditing()) {
             mQSTileHost.setEditing(false);
         }
@@ -4922,6 +4920,7 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
     }
 
     public void onScreenTurnedOff() {
+        mVisualizerView.setVisible(false);
         if (mNotificationPanel.hasExternalKeyguardView()) {
             mNotificationPanel.getExternalKeyguardView().onScreenTurnedOff();
         }
