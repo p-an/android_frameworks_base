@@ -87,7 +87,6 @@
     <color name="no_recent_apps_text_color">@android:color/holo_blue_light</color>
     <color name="no_notifications_text_color">#ffffff</color>
     <color name="keyguard_overflow_number_text_color">#ff686868</color>
-    <color name="keyguard_carrier_text_color">#ffffff</color>
     <color name="screen_pinning_description_text_color">@android:color/white</color>
     <color name="screen_pinning_cancel_button_text_color">@android:color/white</color>
     <color name="recents_empty_message_text_color">#ffffffff</color>

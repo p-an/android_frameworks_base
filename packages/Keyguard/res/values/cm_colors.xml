@@ -16,4 +16,5 @@
 <resources>
 
     <color name="keyguard_sim_view_divider">#28FFFFFF</color>
+    <color name="keyguard_carrier_text_color">#ffffff</color>
 </resources>
