@@ -507,14 +507,14 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
         protected void observe() {
             super.observe();
             ContentResolver resolver = mContext.getContentResolver();
-            resolver.registerContentObserver(CMSettings.Secure.getUriFor(
-                    CMSettings.Secure.DEV_FORCE_SHOW_NAVBAR), false, this, UserHandle.USER_ALL);
+            resolver.registerContentObserver(CMSettings.Global.getUriFor(
+                    CMSettings.Global.DEV_FORCE_SHOW_NAVBAR), false, this, UserHandle.USER_ALL);
         }
 
         @Override
         public void update() {
-            boolean visible = CMSettings.Secure.getIntForUser(mContext.getContentResolver(),
-                    CMSettings.Secure.DEV_FORCE_SHOW_NAVBAR, 0, UserHandle.USER_CURRENT) == 1;
+            boolean visible = CMSettings.Global.getIntForUser(mContext.getContentResolver(),
+                    CMSettings.Global.DEV_FORCE_SHOW_NAVBAR, 0, UserHandle.USER_CURRENT) == 1;
 
             if (visible) {
                 forceAddNavigationBar();
@@ -928,6 +928,9 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
         mLiveLockScreenController = new LiveLockScreenController(mContext, this,
                 mNotificationPanel);
         mNotificationPanel.setLiveController(mLiveLockScreenController);
+        if (mStatusBarWindowManager != null) {
+            mStatusBarWindowManager.setLiveLockscreenController(mLiveLockScreenController);
+        }
 
         if (mHeadsUpManager == null) {
             mHeadsUpManager = new HeadsUpManager(context, mStatusBarWindow);
@@ -3461,6 +3464,9 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
         mStatusBarWindowManager = new StatusBarWindowManager(mContext, mKeyguardMonitor);
         mStatusBarWindowManager.setShowingMedia(mKeyguardShowingMedia);
         mStatusBarWindowManager.add(mStatusBarWindow, getStatusBarHeight());
+        if (mLiveLockScreenController != null) {
+            mStatusBarWindowManager.setLiveLockscreenController(mLiveLockScreenController);
+        }
     }
 
     // called by makeStatusbar and also by PhoneStatusBarView
@@ -3787,6 +3793,7 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
             mLiveLockScreenController.cleanup();
         }
 
+        mKeyguardBottomArea.cleanup();
         mStatusBarWindow.removeContent(mStatusBarWindowContent);
         mStatusBarWindow.clearDisappearingChildren();
 
@@ -4348,6 +4355,12 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
         }
         mAssistManager.onLockscreenShown();
         mKeyguardBottomArea.requestFocus();
+        try {
+            WindowManagerGlobal.getWindowManagerService()
+                    .setLiveLockscreenEdgeDetector(false);
+        } catch (RemoteException e){
+            e.printStackTrace();
+        }
         if (mLiveLockScreenController.isShowingLiveLockScreenView()) {
             mLiveLockScreenController.getLiveLockScreenView().onKeyguardShowing(
                     mStatusBarKeyguardViewManager.isScreenTurnedOn());
@@ -4685,7 +4698,8 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
     }
 
     public void showBouncer() {
-        if (!mRecreating && mNotificationPanel.mCanDismissKeyguard) {
+        if (!mRecreating && mNotificationPanel.mCanDismissKeyguard
+                && (mState != StatusBarState.SHADE || mLiveLockScreenController.getLiveLockScreenHasFocus())) {
             mWaitingForKeyguardExit = mStatusBarKeyguardViewManager.isShowing();
             mStatusBarKeyguardViewManager.dismiss();
         }
@@ -4701,7 +4715,6 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
     }
 
     protected void unfocusKeyguardExternalView() {
-        setBarState(StatusBarState.KEYGUARD);
         mStatusBarKeyguardViewManager.setKeyguardExternalViewFocus(false);
     }
 
@@ -4790,14 +4803,10 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
     }
 
     public void onTrackingStopped(boolean expand) {
-        if (mState == StatusBarState.KEYGUARD || mState == StatusBarState.SHADE_LOCKED || mStatusBarWindowManager.keyguardExternalViewHasFocus()) {
-            if (!expand && (!mUnlockMethodCache.canSkipBouncer() ||
-                    mLiveLockScreenController.isShowingLiveLockScreenView())) {
+        if (mState == StatusBarState.KEYGUARD || mState == StatusBarState.SHADE_LOCKED) {
+            if (!expand && !mUnlockMethodCache.canSkipBouncer()) {
                 showBouncer();
             }
-        } else if (expand && mStatusBarWindowManager.keyguardExternalViewHasFocus()) {
-            mStatusBarKeyguardViewManager.setKeyguardExternalViewFocus(false);
-            setBarState(StatusBarState.KEYGUARD);
         }
     }
 
