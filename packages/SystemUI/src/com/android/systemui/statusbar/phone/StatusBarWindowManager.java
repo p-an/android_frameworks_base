@@ -18,12 +18,14 @@ package com.android.systemui.statusbar.phone;
 
 import android.content.Context;
 import android.content.pm.ActivityInfo;
+import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.database.ContentObserver;
 import android.graphics.Point;
 import android.graphics.PixelFormat;
 import android.os.Handler;
 import android.os.SystemProperties;
+import android.provider.Settings;
 import android.view.Gravity;
 import android.view.Display;
 import android.view.SurfaceSession;
@@ -54,8 +56,9 @@ public class StatusBarWindowManager implements KeyguardMonitor.Callback {
     private WindowManager.LayoutParams mLp;
     private WindowManager.LayoutParams mLpChanged;
     private int mBarHeight;
-    private final boolean mKeyguardScreenRotation;
+    private boolean mKeyguardScreenRotation;
     private final float mScreenBrightnessDoze;
+    private final boolean mBlurSupported;
 
     private boolean mKeyguardBlurEnabled;
     private boolean mShowingMedia;
@@ -63,6 +66,7 @@ public class StatusBarWindowManager implements KeyguardMonitor.Callback {
     private final SurfaceSession mFxSession;
 
     private final KeyguardMonitor mKeyguardMonitor;
+    private int mCurrentOrientation;
 
     private static final int TYPE_LAYER_MULTIPLIER = 10000; // refer to WindowManagerService.TYPE_LAYER_MULTIPLIER
     private static final int TYPE_LAYER_OFFSET = 1000;      // refer to WindowManagerService.TYPE_LAYER_OFFSET
@@ -78,6 +82,8 @@ public class StatusBarWindowManager implements KeyguardMonitor.Callback {
         mKeyguardScreenRotation = shouldEnableKeyguardScreenRotation();
         mScreenBrightnessDoze = mContext.getResources().getInteger(
                 com.android.internal.R.integer.config_screenBrightnessDoze) / 255f;
+        mBlurSupported = mContext.getResources().getBoolean(
+                com.android.internal.R.bool.config_ui_blur_enabled);
 
         mKeyguardMonitor = kgm;
         mKeyguardMonitor.addCallback(this);
@@ -86,8 +92,13 @@ public class StatusBarWindowManager implements KeyguardMonitor.Callback {
 
     private boolean shouldEnableKeyguardScreenRotation() {
         Resources res = mContext.getResources();
+        boolean enableAccelerometerRotation = Settings.System.getInt(mContext.getContentResolver(),
+                Settings.System.ACCELEROMETER_ROTATION, 1) != 0;
+        boolean enableLockScreenRotation = CMSettings.System.getInt(mContext.getContentResolver(),
+                CMSettings.System.LOCKSCREEN_ROTATION, 0) != 0;
         return SystemProperties.getBoolean("lockscreen.rot_override", false)
-                || res.getBoolean(R.bool.config_enableLockScreenRotation);
+                || (res.getBoolean(R.bool.config_enableLockScreenRotation)
+                && (enableLockScreenRotation && enableAccelerometerRotation));
     }
 
     /**
@@ -121,22 +132,22 @@ public class StatusBarWindowManager implements KeyguardMonitor.Callback {
         mLpChanged = new WindowManager.LayoutParams();
         mLpChanged.copyFrom(mLp);
 
-        boolean blurSupported = mContext.getResources().getBoolean(
-                com.android.internal.R.bool.config_ui_blur_enabled);
-        mKeyguardBlurEnabled = CMSettings.Secure.getInt(mContext.getContentResolver(),
-                CMSettings.Secure.LOCK_SCREEN_BLUR_ENABLED, blurSupported ? 1 : 0) == 1;
-        if (blurSupported) {
+        mKeyguardBlurEnabled = mBlurSupported ?
+                CMSettings.Secure.getInt(mContext.getContentResolver(),
+                CMSettings.Secure.LOCK_SCREEN_BLUR_ENABLED, 1) == 1 : false;
+        if (mBlurSupported) {
             Display display = mWindowManager.getDefaultDisplay();
             Point xy = new Point();
             display.getRealSize(xy);
+            mCurrentOrientation = mContext.getResources().getConfiguration().orientation;
             mKeyguardBlur = new BlurLayer(mFxSession, xy.x, xy.y, "KeyGuard");
             if (mKeyguardBlur != null) {
                 mKeyguardBlur.setLayer(STATUS_BAR_LAYER - 2);
             }
-
-            SettingsObserver observer = new SettingsObserver(new Handler());
-            observer.observe(mContext);
         }
+
+        SettingsObserver observer = new SettingsObserver(new Handler());
+        observer.observe(mContext);
     }
 
     private void applyKeyguardFlags(State state) {
@@ -148,7 +159,7 @@ public class StatusBarWindowManager implements KeyguardMonitor.Callback {
         } else {
             mLpChanged.flags &= ~WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER;
             mLpChanged.privateFlags &= ~WindowManager.LayoutParams.PRIVATE_FLAG_KEYGUARD;
-            if (mKeyguardBlurEnabled) {
+            if (mKeyguardBlurEnabled && mKeyguardBlur != null) {
                 mKeyguardBlur.hide();
             }
         }
@@ -352,6 +363,16 @@ public class StatusBarWindowManager implements KeyguardMonitor.Callback {
         setKeyguardOccluded(hasFocus);
     }
 
+    public void onConfigurationChanged(Configuration newConfig) {
+        if (mKeyguardBlur != null && newConfig.orientation != mCurrentOrientation) {
+            Display display = mWindowManager.getDefaultDisplay();
+            Point xy = new Point();
+            display.getRealSize(xy);
+            mKeyguardBlur.setSize(xy.x, xy.y);
+            mCurrentOrientation = newConfig.orientation;
+        }
+    }
+
     /**
      * @param state The {@link StatusBarState} of the status bar.
      */
@@ -468,6 +489,14 @@ public class StatusBarWindowManager implements KeyguardMonitor.Callback {
                     CMSettings.Secure.getUriFor(CMSettings.Secure.LOCK_SCREEN_BLUR_ENABLED),
                     false,
                     this);
+            context.getContentResolver().registerContentObserver(
+                    Settings.System.getUriFor(Settings.System.ACCELEROMETER_ROTATION),
+                    false,
+                    this);
+            context.getContentResolver().registerContentObserver(
+                    CMSettings.System.getUriFor(CMSettings.System.LOCKSCREEN_ROTATION),
+                    false,
+                    this);
         }
 
         public void unobserve(Context context) {
@@ -476,9 +505,10 @@ public class StatusBarWindowManager implements KeyguardMonitor.Callback {
 
         @Override
         public void onChange(boolean selfChange) {
-            // default to being enabled since we are here because the blur config was set to true
-            mKeyguardBlurEnabled = CMSettings.Secure.getInt(mContext.getContentResolver(),
-                    CMSettings.Secure.LOCK_SCREEN_BLUR_ENABLED, 1) == 1;
+            mKeyguardBlurEnabled = mBlurSupported ?
+                    CMSettings.Secure.getInt(mContext.getContentResolver(),
+                    CMSettings.Secure.LOCK_SCREEN_BLUR_ENABLED, 1) == 1 : false;
+            mKeyguardScreenRotation = shouldEnableKeyguardScreenRotation();
             // update the state
             apply(mCurrentState);
         }

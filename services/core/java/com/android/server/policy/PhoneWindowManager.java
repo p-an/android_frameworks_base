@@ -3162,6 +3162,12 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         // timeout.
         if (keyCode == KeyEvent.KEYCODE_HOME) {
 
+            if (mTopFullscreenOpaqueWindowState != null &&
+                    (mTopFullscreenOpaqueWindowState.getAttrs().privateFlags
+                            & WindowManager.LayoutParams.PRIVATE_FLAG_PREVENT_SYSTEM_KEYS) != 0
+                    && mScreenOnFully) {
+                return 0;
+            }
             // If we have released the home key, and didn't do anything else
             // while it was pressed, then it is time to go home!
             if (!down) {
@@ -3262,6 +3268,13 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 return 0;
             }
 
+            if (mTopFullscreenOpaqueWindowState != null &&
+                    (mTopFullscreenOpaqueWindowState.getAttrs().privateFlags
+                            & WindowManager.LayoutParams.PRIVATE_FLAG_PREVENT_SYSTEM_KEYS) != 0
+                    && mScreenOnFully) {
+                return 0;
+            }
+
             if (down) {
                 if (mPressOnMenuBehavior == KEY_ACTION_APP_SWITCH
                         || mLongPressOnMenuBehavior == KEY_ACTION_APP_SWITCH) {
@@ -3327,6 +3340,13 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             }
             return 0;
         } else if (keyCode == KeyEvent.KEYCODE_APP_SWITCH) {
+            if (mTopFullscreenOpaqueWindowState != null &&
+                    (mTopFullscreenOpaqueWindowState.getAttrs().privateFlags
+                            & WindowManager.LayoutParams.PRIVATE_FLAG_PREVENT_SYSTEM_KEYS) != 0
+                    && mScreenOnFully) {
+                return 0;
+            }
+
             if (!keyguardOn) {
                 if (down) {
                     if (mPressOnAppSwitchBehavior == KEY_ACTION_APP_SWITCH
@@ -5839,7 +5859,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             case KeyEvent.KEYCODE_POWER: {
                 if (mTopFullscreenOpaqueWindowState != null &&
                         (mTopFullscreenOpaqueWindowState.getAttrs().privateFlags
-                        & WindowManager.LayoutParams.PRIVATE_FLAG_PREVENT_POWER_KEY) != 0
+                        & (WindowManager.LayoutParams.PRIVATE_FLAG_PREVENT_SYSTEM_KEYS |
+                            WindowManager.LayoutParams.PRIVATE_FLAG_PREVENT_POWER_KEY)) != 0
                         && mScreenOnFully) {
                     return result;
                 }
