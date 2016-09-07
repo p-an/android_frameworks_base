@@ -20,6 +20,7 @@ import android.annotation.IntDef;
 import android.annotation.SystemApi;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
+import android.content.pm.ApplicationInfo;
 import android.content.res.CompatibilityInfo;
 import android.content.res.Configuration;
 import android.graphics.Rect;
@@ -665,6 +666,11 @@ public interface WindowManagerPolicy {
     public WindowState getWinShowWhenLockedLw();
 
     /**
+     * Returns the current keyguard panel, if such a thing exists.
+     */
+    public WindowState getWinKeyguardPanelLw();
+
+    /**
      * Called when the system would like to show a UI to indicate that an
      * application is starting.  You can use this to add a
      * APPLICATION_STARTING_TYPE window with the given appToken to the window
@@ -1166,9 +1172,10 @@ public interface WindowManagerPolicy {
     public void systemBooted();
 
     /**
-     * Show boot time message to the user.
+     * Update UI for boot-up progress.
      */
-    public void showBootMessage(final CharSequence msg, final boolean always);
+    public void updateBootProgress(final int stage, final ApplicationInfo optimizedApp,
+            final int currentAppPos, final int totalAppCount);
 
     /**
      * Hide the UI for showing boot messages, never to be displayed again.

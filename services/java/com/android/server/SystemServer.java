@@ -18,6 +18,7 @@ package com.android.server;
 
 import android.app.ActivityManagerNative;
 import android.app.ActivityThread;
+import android.app.IActivityManager;
 import android.app.IAlarmManager;
 import android.app.INotificationManager;
 import android.app.usage.UsageStatsManagerInternal;
@@ -460,6 +461,7 @@ public final class SystemServer {
         boolean isEmulator = SystemProperties.get("ro.kernel.qemu").equals("1");
         String externalServer = context.getResources().getString(
                 org.cyanogenmod.platform.internal.R.string.config_externalSystemServer);
+        boolean disableAtlas = SystemProperties.getBoolean("config.disable_atlas", false);
 
         try {
             Slog.i(TAG, "Reading configuration...");
@@ -619,10 +621,8 @@ public final class SystemServer {
         }
 
         try {
-            ActivityManagerNative.getDefault().showBootMessage(
-                    context.getResources().getText(
-                            com.android.internal.R.string.android_upgrading_starting_apps),
-                    false);
+            ActivityManagerNative.getDefault().updateBootProgress(
+                    IActivityManager.BOOT_STAGE_STARTING_APPS, null, 0, 0, false);
         } catch (RemoteException e) {
         }
 
@@ -960,7 +960,7 @@ public final class SystemServer {
                 mSystemServiceManager.startService(DreamManagerService.class);
             }
 
-            if (!disableNonCoreServices) {
+            if (!disableNonCoreServices && !disableAtlas) {
                 try {
                     Slog.i(TAG, "Assets Atlas Service");
                     atlas = new AssetAtlasService(context);
